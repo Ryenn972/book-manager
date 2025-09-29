@@ -65,7 +65,7 @@ final class BookController extends AbstractController
             return $this->redirectToRoute('app_book_index');
         }
 
-        return $this->renderForm('book/new.html.twig', [
+        return $this->render('book/new.html.twig', [
             'book' => $book,
             'form' => $form,
         ]);
@@ -80,19 +80,57 @@ final class BookController extends AbstractController
     }
 
     #[Route('/{id}/edit', name: 'app_book_edit', methods: ['GET', 'POST'])]
-    public function edit(Request $request, Book $book, EntityManagerInterface $entityManager): Response
+    public function edit(Request $request, Book $book, EntityManagerInterface $em, SluggerInterface $slugger): Response
     {
-        if ($book->getOwner() !== $this->getUser() && !$this->isGranted('ROLE_ADMIN')) {
-            throw $this->createAccessDeniedException('Vous ne pouvez pas modifier ce livre.');
+        // Vérification de la sécurité : seul le propriétaire ou un admin peut éditer
+        if ($this->getUser() !== $book->getOwner() && !$this->isGranted('ROLE_ADMIN')) {
+            $this->addFlash('error', 'Vous n’avez pas le droit de modifier ce livre.');
+            return $this->redirectToRoute('app_book_index');
         }
 
         $form = $this->createForm(BookType::class, $book);
         $form->handleRequest($request);
 
         if ($form->isSubmitted() && $form->isValid()) {
-            $entityManager->flush();
+            $imageFile = $form->get('coverImage')->getData();
 
-            return $this->redirectToRoute('app_book_index', [], Response::HTTP_SEE_OTHER);
+            if ($imageFile) {
+                // Supprimer l’ancien fichier si existant
+                if ($book->getCoverImage()) {
+                    $oldFile = $this->getParameter('covers_directory').'/'.$book->getCoverImage();
+                    if (file_exists($oldFile)) {
+                        unlink($oldFile);
+                    }
+                }
+
+                // Générer un nouveau nom de fichier sécurisé
+                $originalFilename = pathinfo($imageFile->getClientOriginalName(), PATHINFO_FILENAME);
+                $safeFilename = $slugger->slug($originalFilename);
+                $newFilename = $safeFilename.'-'.uniqid().'.'.$imageFile->guessExtension();
+
+                try {
+                    $imageFile->move(
+                        $this->getParameter('covers_directory'),
+                        $newFilename
+                    );
+                } catch (FileException $e) {
+                    $this->addFlash('error', 'Erreur lors de l’upload de l’image.');
+                    return $this->redirectToRoute('app_book_edit', ['id' => $book->getId()]);
+                }
+
+                $book->setCoverImage($newFilename);
+            }
+
+            // Mettre à jour la date de modification
+            $book->setUpdatedAt(new \DateTime());
+
+            // Mettre à jour le slug si le titre a changé
+            $book->setSlug($slugger->slug($book->getTitle()));
+
+            $em->flush();
+
+            $this->addFlash('success', 'Livre modifié avec succès !');
+            return $this->redirectToRoute('app_book_index');
         }
 
         return $this->render('book/edit.html.twig', [
@@ -101,18 +139,32 @@ final class BookController extends AbstractController
         ]);
     }
 
-    #[Route('/{id}', name: 'app_book_delete', methods: ['POST'])]
-    public function delete(Request $request, Book $book, EntityManagerInterface $entityManager): Response
+
+    #[Route('/books/{id}', name: 'app_book_delete', methods: ['POST'])]
+    public function delete(Request $request, Book $book, EntityManagerInterface $em): Response
     {
-        if ($book->getOwner() !== $this->getUser() && !$this->isGranted('ROLE_ADMIN')) {
-            throw $this->createAccessDeniedException('Vous ne pouvez pas modifier ce livre.');
+        // Vérification de la sécurité
+        if ($this->getUser() !== $book->getOwner() && !$this->isGranted('ROLE_ADMIN')) {
+            $this->addFlash('error', 'Vous n’avez pas le droit de supprimer ce livre.');
+            return $this->redirectToRoute('app_book_index');
         }
 
-        if ($this->isCsrfTokenValid('delete'.$book->getId(), $request->getPayload()->getString('_token'))) {
-            $entityManager->remove($book);
-            $entityManager->flush();
+        if ($this->isCsrfTokenValid('delete'.$book->getId(), $request->request->get('_token'))) {
+            // Supprimer l’image associée si elle existe
+            if ($book->getCoverImage()) {
+                $filePath = $this->getParameter('covers_directory').'/'.$book->getCoverImage();
+                if (file_exists($filePath)) {
+                    unlink($filePath);
+                }
+            }
+
+            $em->remove($book);
+            $em->flush();
+
+            $this->addFlash('success', 'Livre supprimé avec succès.');
         }
 
-        return $this->redirectToRoute('app_book_index', [], Response::HTTP_SEE_OTHER);
+        return $this->redirectToRoute('app_book_index');
     }
+
 }
