@@ -1,0 +1,50 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Accueil - Book Manager{% endblock %}
+
+{% block body %}
+    <h1 class="mb-4">Bienvenue sur BookManager 📚</h1>
+
+    <!-- Barre de recherche et filtre -->
+    <form method="get" class="row mb-4">
+        <div class="col-md-5">
+            <input type="text" name="q" class="form-control" placeholder="Rechercher par titre..." value="{{ search }}">
+        </div>
+        <div class="col-md-3">
+            <select name="genre" class="form-select">
+                <option value="">-- Tous les genres --</option>
+                <option value="Roman" {{ genre == 'Roman' ? 'selected' }}>Roman</option>
+                <option value="Essai" {{ genre == 'Essai' ? 'selected' }}>Essai</option>
+                <option value="Science-Fiction" {{ genre == 'Science-Fiction' ? 'selected' }}>Science-Fiction</option>
+                <option value="Biographie" {{ genre == 'Biographie' ? 'selected' }}>Biographie</option>
+            </select>
+        </div>
+        <div class="col-md-2">
+            <button type="submit" class="btn btn-primary w-100">Filtrer</button>
+        </div>
+    </form>
+
+    <!-- Grille des livres -->
+    <div class="row">
+        {% for book in books %}
+            <div class="col-md-3">
+                <div class="card mb-4 shadow-sm h-100">
+                    {% if book.coverImage %}
+                        <img src="{{ asset('uploads/covers/' ~ book.coverImage) }}" class="card-img-top" alt="{{ book.title }}">
+                    {% else %}
+                        <img src="https://via.placeholder.com/150x200?text=Pas+d'image" class="card-img-top" alt="Pas d'image">
+                    {% endif %}
+
+                    <div class="card-body d-flex flex-column">
+                        <h5 class="card-title">{{ book.title }}</h5>
+                        <p class="card-text text-muted">{{ book.author }}</p>
+                        <span class="badge bg-info mb-2">{{ book.genre }}</span>
+                        <a href="{{ path('app_book_show', {id: book.id}) }}" class="btn btn-outline-primary mt-auto">Voir plus</a>
+                    </div>
+                </div>
+            </div>
+        {% else %}
+            <p class="text-center">Aucun livre trouvé.</p>
+        {% endfor %}
+    </div>
+{% endblock %}
