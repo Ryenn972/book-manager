@@ -14,7 +14,7 @@ CREATE DATABASE book_manager_ryenn CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode
 
 ### Connecter la BDD
 
-Modifier DATABASE_URL par => DATABASE_URL="mysql://root@127.0.0.1:3306/book_manager_ryenn?serverVersion=9.1.0&charset=utf8mb4"
+Modifier DATABASE_URL dans le fichier .env
 
 ### Lancer les migrations
 
